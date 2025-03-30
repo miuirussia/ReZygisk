@@ -6,6 +6,7 @@
 #include <android/dlext.h>
 
 #include "dl.h"
+#include "files.hpp"
 #include "logging.h"
 
 extern "C" [[gnu::weak]] struct android_namespace_t*
@@ -55,11 +56,22 @@ void* DlopenMem(int fd, int flags) {
         .library_namespace = NULL
     };
 
-    auto* handle = android_dlopen_ext("/jit-cache-zygisk", flags, &info);
+    /* INFO: We need to find the path of the fd since passing "" to android_dlopen_ext
+        will not work and passing the original "jit-cache-zygisk" will cause a detection again. */
+    char path[PATH_MAX];
+    if (get_path_from_fd(fd, path, sizeof(path)) != 0) {
+        LOGE("Failed to get path for fd: %d", fd);
+        return NULL;
+    }
+        
+    LOGD("Path for fd %d: %s", fd, path);
+
+    auto *handle = android_dlopen_ext(path, flags, &info);
     if (handle) {
         LOGV("dlopen fd %d: %p", fd, handle);
     } else {
         LOGE("dlopen fd %d: %s", fd, dlerror());
     }
+
     return handle;
 }
